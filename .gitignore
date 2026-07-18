@@ -4,9 +4,13 @@ PROJECT_SUMMARY.md
 # Pre-hackathon scratch work
 old/
 stigma_data/
+notes/
 
 # Secrets
 .env
 
 # OS
 .DS_Store
+
+# Claude Code session files
+.claude/

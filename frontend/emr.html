@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>StigmaGuard EMR</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header */
+.header { background: #1a2b4a; color: white; padding: 0 1.5rem; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.header-brand { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.02em; }
+.header-brand span { color: #60a5fa; }
+.header-config { display: flex; gap: 1rem; align-items: flex-end; }
+.header-config .field { display: flex; flex-direction: column; gap: 2px; }
+.header-config label { font-size: 0.65rem; color: #8aa0c0; text-transform: uppercase; letter-spacing: 0.05em; }
+.header-config input { padding: 0.28rem 0.55rem; font-size: 0.75rem; border: 1px solid #3a5070; background: #243654; color: white; border-radius: 4px; width: 230px; }
+.header-config input::placeholder { color: #6a88a8; }
+
+/* Patient list view */
+.patient-list-view { flex: 1; overflow: auto; padding: 1.5rem; }
+.view-title { font-size: 0.95rem; font-weight: 600; color: #1a2b4a; margin-bottom: 1rem; }
+.patient-table { width: 100%; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.1); border-collapse: collapse; }
+.patient-table th { background: #1a2b4a; color: #c8d8f0; padding: 0.6rem 1rem; text-align: left; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.patient-table td { padding: 0.7rem 1rem; font-size: 0.83rem; border-bottom: 1px solid #f0f2f5; color: #2d3748; }
+.patient-table tbody tr { cursor: pointer; transition: background 0.1s; }
+.patient-table tbody tr:hover { background: #eff6ff; }
+.patient-table tbody tr:last-child td { border-bottom: none; }
+.btn-open { background: #2563eb; color: white; border: none; padding: 0.28rem 0.75rem; border-radius: 4px; font-size: 0.72rem; cursor: pointer; font-weight: 500; }
+.btn-open:hover { background: #1d4ed8; }
+
+/* Chart view */
+.chart-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Patient banner */
+.patient-banner { background: #dce6f5; border-bottom: 2px solid #b8cce4; padding: 0.55rem 1.5rem; display: flex; align-items: center; gap: 1.5rem; flex-shrink: 0; }
+.back-btn { background: white; border: 1px solid #b8cce4; color: #1a2b4a; padding: 0.28rem 0.75rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
+.back-btn:hover { background: #f0f4fa; }
+.patient-name { font-size: 1.05rem; font-weight: 700; color: #1a2b4a; white-space: nowrap; }
+.banner-divider { width: 1px; height: 28px; background: #b8cce4; }
+.meta-item { display: flex; flex-direction: column; }
+.meta-label { font-size: 0.62rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.meta-value { font-size: 0.8rem; color: #2d3748; font-weight: 500; }
+
+/* Chart body */
+.chart-body { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 172px; background: #1a2b4a; flex-shrink: 0; overflow-y: auto; padding-top: 0.5rem; }
+.sidebar-group { margin-bottom: 0.25rem; }
+.sidebar-group-label { font-size: 0.62rem; color: #6a88a8; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.7rem 1rem 0.3rem; font-weight: 600; }
+.sidebar-btn { display: block; width: 100%; text-align: left; background: none; border: none; padding: 0.5rem 1rem; color: #b0c8e8; font-size: 0.8rem; cursor: pointer; transition: background 0.1s; border-left: 3px solid transparent; }
+.sidebar-btn:hover { background: #243654; color: white; }
+.sidebar-btn.active { background: #243654; color: white; border-left-color: #3b82f6; font-weight: 500; }
+
+/* Content */
+.content-area { flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; }
+.section-panel { display: none; }
+.section-panel.active { display: block; }
+.panel-title { font-size: 0.88rem; font-weight: 600; color: #1a2b4a; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+.btn-refresh { background: none; border: 1px solid #e2e8f0; color: #718096; border-radius: 4px; padding: 0.2rem 0.55rem; font-size: 0.72rem; cursor: pointer; }
+.btn-refresh:hover { background: #f0f2f5; color: #1a2b4a; }
+
+/* Data table */
+.data-table { width: 100%; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); overflow: hidden; border-collapse: collapse; }
+.data-table th { background: #f7f9fc; padding: 0.5rem 1rem; text-align: left; font-size: 0.7rem; color: #718096; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #e2e8f0; }
+.data-table td { padding: 0.6rem 1rem; font-size: 0.82rem; border-bottom: 1px solid #f0f2f5; color: #2d3748; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: #f7f9fc; }
+
+.empty-state { padding: 2rem; text-align: center; color: #a0aec0; font-size: 0.82rem; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+
+/* Summary grid */
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.summary-card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); overflow: hidden; }
+.summary-card-header { background: #f7f9fc; padding: 0.5rem 0.9rem; font-size: 0.7rem; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; }
+.summary-card-body { padding: 0.5rem 0; }
+.summary-row { padding: 0.4rem 0.9rem; font-size: 0.8rem; color: #2d3748; border-left: 3px solid transparent; }
+.summary-row.blue { border-left-color: #3b82f6; }
+.summary-row.purple { border-left-color: #8b5cf6; }
+.summary-row.red { border-left-color: #ef4444; }
+.summary-row.amber { border-left-color: #f59e0b; }
+
+/* Badges */
+.badge { display: inline-block; padding: 0.12rem 0.45rem; border-radius: 10px; font-size: 0.68rem; font-weight: 600; }
+.badge-active { background: #c6f6d5; color: #276749; }
+.badge-inactive { background: #e2e8f0; color: #718096; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-critical { background: #fee2e2; color: #991b1b; }
+.badge-info { background: #dbeafe; color: #1e40af; }
+
+/* Documentation */
+.doc-layout { display: flex; gap: 1rem; height: calc(100vh - 190px); }
+.doc-list-pane { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; }
+.doc-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.doc-list-header span { font-size: 0.75rem; color: #718096; font-weight: 500; }
+.doc-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem; }
+.doc-item { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.65rem 0.8rem; cursor: pointer; transition: all 0.1s; }
+.doc-item:hover { border-color: #93c5fd; background: #eff6ff; }
+.doc-item.active { border-color: #2563eb; background: #eff6ff; }
+.doc-item-title { font-size: 0.8rem; font-weight: 600; color: #1a2b4a; }
+.doc-item-meta { font-size: 0.7rem; color: #a0aec0; margin-top: 0.15rem; }
+
+.doc-editor { flex: 1; display: flex; flex-direction: column; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); overflow: hidden; min-width: 0; }
+.doc-editor textarea { min-height: 180px; }
+
+/* Stigma flags panel */
+.stigma-panel { border-top: 2px solid #e2e8f0; background: #fafafa; overflow-y: auto; max-height: 340px; }
+.stigma-panel-header { padding: 0.6rem 1rem; background: #1a2b4a; color: white; display: flex; align-items: center; justify-content: space-between; }
+.stigma-panel-header span { font-size: 0.8rem; font-weight: 600; }
+.stigma-panel-clear { text-align: center; padding: 1.2rem; color: #276749; font-size: 0.83rem; }
+.stigma-loading { text-align: center; padding: 1.2rem; color: #718096; font-size: 0.82rem; }
+.flag-card { margin: 0.6rem 0.8rem; border-radius: 7px; overflow: hidden; border: 1px solid #e2e8f0; }
+.flag-card.critical { border-left: 4px solid #ef4444; }
+.flag-card.warning  { border-left: 4px solid #f59e0b; }
+.flag-card.info     { border-left: 4px solid #3b82f6; }
+.flag-card-header { padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; background: white; }
+.flag-span { font-family: monospace; font-size: 0.78rem; background: #fee2e2; color: #991b1b; padding: 0.1rem 0.35rem; border-radius: 3px; }
+.flag-span.warning { background: #fef3c7; color: #92400e; }
+.flag-span.info    { background: #dbeafe; color: #1e40af; }
+.flag-cat { font-size: 0.68rem; color: #718096; margin-left: auto; font-style: italic; }
+.flag-conf { font-size: 0.68rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 10px; }
+.flag-conf.critical { background: #fee2e2; color: #991b1b; }
+.flag-conf.warning  { background: #fef3c7; color: #92400e; }
+.flag-conf.info     { background: #dbeafe; color: #1e40af; }
+.flag-card-body { padding: 0.5rem 0.75rem; background: #fafafa; border-top: 1px solid #f0f0f0; }
+.flag-reason { font-size: 0.78rem; color: #4a5568; line-height: 1.45; margin-bottom: 0.4rem; }
+.flag-rewrite { font-size: 0.76rem; color: #276749; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; padding: 0.35rem 0.6rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.flag-rewrite span { flex: 1; font-style: italic; }
+.btn-accept { background: #16a34a; color: white; border: none; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
+.btn-accept:hover { background: #15803d; }
+.btn-check { background: #7c3aed; color: white; border: none; }
+.btn-check:hover { background: #6d28d9; }
+.doc-editor-header { padding: 0.75rem 1rem; border-bottom: 1px solid #e2e8f0; background: #f7f9fc; }
+.doc-editor-title { font-size: 0.85rem; font-weight: 600; color: #1a2b4a; }
+.doc-editor-meta { font-size: 0.7rem; color: #a0aec0; margin-top: 0.15rem; font-family: monospace; }
+.doc-editor textarea { flex: 1; padding: 1rem; font-family: Georgia, serif; font-size: 0.87rem; line-height: 1.7; border: none; resize: none; outline: none; color: #2d3748; }
+.doc-editor-footer { padding: 0.7rem 1rem; border-top: 1px solid #e2e8f0; background: #f7f9fc; display: flex; justify-content: flex-end; gap: 0.5rem; align-items: center; }
+.doc-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: #a0aec0; font-size: 0.85rem; }
+
+/* Buttons */
+.btn { padding: 0.45rem 1.1rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; border: none; font-weight: 500; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-sm { padding: 0.28rem 0.7rem; font-size: 0.73rem; }
+.btn-sign { background: #dc2626; color: white; }
+.btn-sign:hover { background: #b91c1c; }
+.btn-ghost { background: white; color: #4a5568; border: 1px solid #cbd5e0; }
+.btn-ghost:hover { background: #f7f9fc; }
+
+/* Modal */
+dialog { max-width: 560px; width: 92%; border-radius: 10px; border: none; padding: 0; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+dialog::backdrop { background: rgba(0,0,0,0.5); }
+.modal-header { padding: 1rem 1.5rem; background: #1a2b4a; color: white; border-radius: 10px 10px 0 0; }
+.modal-header h3 { font-size: 0.95rem; font-weight: 600; }
+.modal-body { padding: 1.25rem 1.5rem; max-height: 55vh; overflow-y: auto; }
+.modal-footer { padding: 0.9rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.5rem; align-items: center; }
+
+.cds-card { border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 0.7rem; }
+.cds-card.info { border-left: 4px solid #3b82f6; background: #eff6ff; }
+.cds-card.warning { border-left: 4px solid #f59e0b; background: #fffbeb; }
+.cds-card.critical { border-left: 4px solid #ef4444; background: #fef2f2; }
+.cds-card h4 { font-size: 0.85rem; font-weight: 600; color: #1a2b4a; margin-bottom: 0.3rem; }
+.cds-card p { font-size: 0.8rem; color: #4a5568; line-height: 1.5; }
+.cds-clear { text-align: center; padding: 1.5rem 0; }
+.cds-clear .icon { font-size: 2.2rem; }
+.cds-clear p { color: #276749; font-weight: 600; margin-top: 0.4rem; }
+.cds-clear small { color: #718096; font-size: 0.78rem; }
+
+.override-box { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
+.override-box label { font-size: 0.78rem; color: #4a5568; display: block; margin-bottom: 0.4rem; font-weight: 500; }
+.override-box textarea { width: 100%; padding: 0.5rem; font-size: 0.8rem; border: 1px solid #cbd5e0; border-radius: 6px; resize: vertical; min-height: 60px; font-family: inherit; }
+.override-box textarea.error { border-color: #dc2626; }
+
+.loading-msg { color: #718096; font-size: 0.83rem; text-align: center; padding: 1.5rem 0; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-brand">Stigma<span>Guard</span> <span style="font-weight:300;color:#6a88a8;font-size:0.85rem;">Clinical Documentation Review</span></div>
+  <div class="header-config">
+    <div class="field">
+      <label>FHIR Base URL</label>
+      <input id="fhirBase" value="http://localhost:8080/fhir">
+    </div>
+    <div class="field">
+      <label>CDS Service URL</label>
+      <input id="cdsUrl" value="http://localhost:8004/cds-services/note-sign">
+    </div>
+  </div>
+</div>
+
+<!-- Patient List View -->
+<div class="patient-list-view" id="patientListView">
+  <div class="view-title">Patient Roster</div>
+  <div id="patientTableWrap"><div class="empty-state">Loading patients…</div></div>
+</div>
+
+<!-- Chart View -->
+<div class="chart-view" id="chartView" style="display:none;">
+
+  <!-- Patient Banner -->
+  <div class="patient-banner">
+    <button class="back-btn" onclick="showPatientList()">&#8592; All Patients</button>
+    <div class="patient-name" id="bannerName"></div>
+    <div class="banner-divider"></div>
+    <div class="meta-item"><div class="meta-label">Date of Birth</div><div class="meta-value" id="bannerDOB"></div></div>
+    <div class="meta-item"><div class="meta-label">Age</div><div class="meta-value" id="bannerAge"></div></div>
+    <div class="meta-item"><div class="meta-label">Sex</div><div class="meta-value" id="bannerGender"></div></div>
+    <div class="meta-item"><div class="meta-label">MRN</div><div class="meta-value" id="bannerMRN"></div></div>
+  </div>
+
+  <div class="chart-body">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Chart</div>
+        <button class="sidebar-btn active" onclick="showTab('summary', this)">Summary</button>
+        <button class="sidebar-btn" onclick="showTab('problems', this)">Problem List</button>
+        <button class="sidebar-btn" onclick="showTab('medications', this)">Medications</button>
+        <button class="sidebar-btn" onclick="showTab('allergies', this)">Allergies</button>
+        <button class="sidebar-btn" onclick="showTab('encounters', this)">Encounters</button>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Documentation</div>
+        <button class="sidebar-btn" onclick="showTab('notes', this)">Notes &amp; Reports</button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-area">
+
+      <!-- Summary -->
+      <div class="section-panel active" id="tab-summary">
+        <div class="panel-title">Patient Summary <button class="btn-refresh" onclick="refreshTab('summary')">↻ Refresh</button></div>
+        <div id="summaryContent"><div class="empty-state">Loading…</div></div>
+      </div>
+
+      <!-- Problems -->
+      <div class="section-panel" id="tab-problems">
+        <div class="panel-title">Problem List <button class="btn-refresh" onclick="refreshTab('problems')">↻ Refresh</button></div>
+        <div id="problemsContent"></div>
+      </div>
+
+      <!-- Medications -->
+      <div class="section-panel" id="tab-medications">
+        <div class="panel-title">Medications <button class="btn-refresh" onclick="refreshTab('medications')">↻ Refresh</button></div>
+        <div id="medicationsContent"></div>
+      </div>
+
+      <!-- Allergies -->
+      <div class="section-panel" id="tab-allergies">
+        <div class="panel-title">Allergies &amp; Intolerances <button class="btn-refresh" onclick="refreshTab('allergies')">↻ Refresh</button></div>
+        <div id="allergiesContent"></div>
+      </div>
+
+      <!-- Encounters -->
+      <div class="section-panel" id="tab-encounters">
+        <div class="panel-title">Encounters <button class="btn-refresh" onclick="refreshTab('encounters')">↻ Refresh</button></div>
+        <div id="encountersContent"></div>
+      </div>
+
+      <!-- Notes -->
+      <div class="section-panel" id="tab-notes">
+        <div class="panel-title">Notes &amp; Reports <button class="btn-refresh" onclick="refreshTab('notes')">↻ Refresh</button></div>
+        <div class="doc-layout">
+          <div class="doc-list-pane">
+            <div class="doc-list-header">
+              <span id="docCount">Documents</span>
+              <button class="btn btn-primary btn-sm" onclick="newNote()">+ New Note</button>
+            </div>
+            <div class="doc-items" id="docItems">
+              <div style="color:#a0aec0;font-size:0.78rem;padding:0.5rem;">Loading…</div>
+            </div>
+          </div>
+          <div class="doc-editor" id="docEditor">
+            <div class="doc-placeholder">Select a note or create a new one</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- CDS Modal -->
+<dialog id="cdsModal">
+  <div class="modal-header"><h3 id="modalTitle">Note Review</h3></div>
+  <div class="modal-body" id="modalBody"></div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" id="btnCancel" onclick="document.getElementById('cdsModal').close()">Cancel</button>
+    <button class="btn btn-sign" id="btnSignAnyway" onclick="finalizeSign()" style="display:none;">Sign Anyway</button>
+    <button class="btn btn-primary" id="btnOk" onclick="document.getElementById('cdsModal').close()" style="display:none;">Done</button>
+  </div>
+</dialog>
+
+<script>
+let currentPatient = null;
+let currentNoteId = null;
+let isNewNote = false;
+let loadedTabs = new Set();
+let pendingCards = [];
+let pendingNoteText = '';
+let pendingNoteTitle = '';
+
+const fhirBase = () => document.getElementById('fhirBase').value.trim();
+const cdsUrl   = () => document.getElementById('cdsUrl').value.trim();
+
+function calcAge(dob) {
+  if (!dob) return '?';
+  return Math.floor((Date.now() - new Date(dob)) / (1000 * 60 * 60 * 24 * 365.25));
+}
+
+function refreshTab(tab) {
+  loadedTabs.delete(tab);
+  ({ summary: loadSummary, problems: loadProblems, medications: loadMedications, allergies: loadAllergies, encounters: loadEncounters, notes: loadNotes })[tab]?.();
+  loadedTabs.add(tab);
+}
+
+// ── Patient List ──────────────────────────────────────────────────────────────
+
+async function loadPatients() {
+  const wrap = document.getElementById('patientTableWrap');
+  try {
+    const bundle = await fetch(`${fhirBase()}/Patient?_count=100`).then(r => r.json());
+    const patients = (bundle.entry || []).map(e => e.resource);
+    if (!patients.length) { wrap.innerHTML = '<div class="empty-state">No patients found.</div>'; return; }
+
+    const rows = patients.map(p => {
+      const name  = p.name?.[0];
+      const full  = name ? `${(name.given||[]).join(' ')} ${name.family||''}`.trim() : '(no name)';
+      const gender = p.gender ? p.gender[0].toUpperCase() + p.gender.slice(1) : '?';
+      return `<tr onclick="openChart('${p.id}')">
+        <td><strong>${full}</strong></td>
+        <td>${p.birthDate || '—'}</td>
+        <td>${calcAge(p.birthDate)}</td>
+        <td>${gender}</td>
+        <td style="font-family:monospace;font-size:0.75rem;color:#718096;">${p.id}</td>
+        <td><button class="btn-open" onclick="event.stopPropagation();openChart('${p.id}')">Open Chart</button></td>
+      </tr>`;
+    }).join('');
+
+    wrap.innerHTML = `<table class="patient-table">
+      <thead><tr><th>Name</th><th>Date of Birth</th><th>Age</th><th>Sex</th><th>MRN</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch {
+    wrap.innerHTML = `<div class="empty-state">Cannot reach FHIR server at <strong>${fhirBase()}</strong>.<br>Is HAPI running? Serve this file via <code>python3 -m http.server</code>.</div>`;
+  }
+}
+
+function showPatientList() {
+  document.getElementById('patientListView').style.display = '';
+  document.getElementById('chartView').style.display = 'none';
+  currentPatient = null;
+  loadedTabs.clear();
+}
+
+async function openChart(patientId) {
+  currentPatient = await fetch(`${fhirBase()}/Patient/${patientId}`).then(r => r.json());
+  loadedTabs.clear();
+
+  const name   = currentPatient.name?.[0];
+  const full   = name ? `${(name.given||[]).join(' ')} ${name.family||''}`.trim() : '(no name)';
+  const gender = currentPatient.gender ? currentPatient.gender[0].toUpperCase() + currentPatient.gender.slice(1) : '?';
+
+  document.getElementById('bannerName').textContent   = full;
+  document.getElementById('bannerDOB').textContent    = currentPatient.birthDate || '?';
+  document.getElementById('bannerAge').textContent    = calcAge(currentPatient.birthDate);
+  document.getElementById('bannerGender').textContent = gender;
+  document.getElementById('bannerMRN').textContent    = currentPatient.id;
+
+  document.getElementById('patientListView').style.display = 'none';
+  document.getElementById('chartView').style.display = '';
+
+  // Reset all tabs; show summary
+  document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-summary').classList.add('active');
+  document.querySelector('.sidebar-btn').classList.add('active');
+  document.getElementById('summaryContent').innerHTML = '<div class="empty-state">Loading…</div>';
+  loadedTabs.add('summary');
+  loadSummary();
+}
+
+// ── Tab Nav ───────────────────────────────────────────────────────────────────
+
+function showTab(tab, btn) {
+  document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  btn.classList.add('active');
+  if (!loadedTabs.has(tab)) {
+    loadedTabs.add(tab);
+    ({ summary: loadSummary, problems: loadProblems, medications: loadMedications, allergies: loadAllergies, encounters: loadEncounters, notes: loadNotes })[tab]?.();
+  }
+}
+
+// ── Summary ───────────────────────────────────────────────────────────────────
+
+async function loadSummary() {
+  const pid = currentPatient.id;
+  const [condB, medB, algB, encB] = await Promise.all([
+    fetch(`${fhirBase()}/Condition?patient=${pid}&_count=10`).then(r=>r.json()),
+    fetch(`${fhirBase()}/MedicationRequest?patient=${pid}&_count=10`).then(r=>r.json()),
+    fetch(`${fhirBase()}/AllergyIntolerance?patient=${pid}&_count=10`).then(r=>r.json()),
+    fetch(`${fhirBase()}/Encounter?patient=${pid}&_count=5&_sort=-date`).then(r=>r.json()),
+  ]);
+
+  const conds = (condB.entry||[]).map(e=>e.resource);
+  const meds  = (medB.entry||[]).map(e=>e.resource);
+  const algs  = (algB.entry||[]).map(e=>e.resource);
+  const encs  = (encB.entry||[]).map(e=>e.resource);
+
+  const section = (label, items, colorClass, getText) => `
+    <div class="summary-card">
+      <div class="summary-card-header">${label}</div>
+      <div class="summary-card-body">
+        ${items.length
+          ? items.map(i => `<div class="summary-row ${colorClass}">${getText(i)}</div>`).join('')
+          : '<div style="padding:0.6rem 0.9rem;font-size:0.78rem;color:#a0aec0;">None on record</div>'}
+      </div>
+    </div>`;
+
+  document.getElementById('summaryContent').innerHTML = `<div class="summary-grid">
+    ${section('Active Problems', conds, 'blue', c => c.code?.text || c.code?.coding?.[0]?.display || '—')}
+    ${section('Current Medications', meds, 'purple', m => m.medicationCodeableConcept?.text || m.medicationCodeableConcept?.coding?.[0]?.display || '—')}
+    ${section('Allergies', algs, 'red', a => a.code?.text || a.code?.coding?.[0]?.display || (algs.length ? '—' : 'NKDA'))}
+    ${section('Recent Encounters', encs, 'amber', e => {
+      const type = e.type?.[0]?.text || e.class?.display || e.class?.code || 'Encounter';
+      const date = e.period?.start?.slice(0,10) || '?';
+      return `${type} <span style="color:#a0aec0;font-size:0.75rem;">— ${date}</span>`;
+    })}
+  </div>`;
+}
+
+// ── Problems ──────────────────────────────────────────────────────────────────
+
+async function loadProblems() {
+  const bundle = await fetch(`${fhirBase()}/Condition?patient=${currentPatient.id}&_count=100`).then(r=>r.json());
+  const items = (bundle.entry||[]).map(e=>e.resource);
+  if (!items.length) { document.getElementById('problemsContent').innerHTML = '<div class="empty-state">No conditions on record.</div>'; return; }
+  const rows = items.map(c => {
+    const status = c.clinicalStatus?.coding?.[0]?.code || '—';
+    const onset  = c.onsetDateTime?.slice(0,10) || c.onsetPeriod?.start?.slice(0,10) || '—';
+    return `<tr>
+      <td>${c.code?.text || c.code?.coding?.[0]?.display || '—'}</td>
+      <td><span class="badge ${status==='active'?'badge-active':'badge-inactive'}">${status}</span></td>
+      <td>${onset}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('problemsContent').innerHTML = `<table class="data-table">
+    <thead><tr><th>Condition</th><th>Status</th><th>Onset</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+// ── Medications ───────────────────────────────────────────────────────────────
+
+async function loadMedications() {
+  const bundle = await fetch(`${fhirBase()}/MedicationRequest?patient=${currentPatient.id}&_count=100`).then(r=>r.json());
+  const items = (bundle.entry||[]).map(e=>e.resource);
+  if (!items.length) { document.getElementById('medicationsContent').innerHTML = '<div class="empty-state">No medications on record.</div>'; return; }
+  const rows = items.map(m => {
+    const name   = m.medicationCodeableConcept?.text || m.medicationCodeableConcept?.coding?.[0]?.display || '—';
+    const dosage = m.dosageInstruction?.[0]?.text || '—';
+    const status = m.status || '—';
+    return `<tr>
+      <td><strong>${name}</strong></td>
+      <td style="color:#718096;">${dosage}</td>
+      <td><span class="badge ${status==='active'?'badge-active':'badge-inactive'}">${status}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('medicationsContent').innerHTML = `<table class="data-table">
+    <thead><tr><th>Medication</th><th>Dosage</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+// ── Allergies ─────────────────────────────────────────────────────────────────
+
+async function loadAllergies() {
+  const bundle = await fetch(`${fhirBase()}/AllergyIntolerance?patient=${currentPatient.id}&_count=100`).then(r=>r.json());
+  const items = (bundle.entry||[]).map(e=>e.resource);
+  if (!items.length) { document.getElementById('allergiesContent').innerHTML = '<div class="empty-state">No known allergies (NKDA).</div>'; return; }
+  const severityBadge = { mild: 'badge-info', moderate: 'badge-warning', severe: 'badge-critical' };
+  const rows = items.map(a => {
+    const substance = a.code?.text || a.code?.coding?.[0]?.display || '—';
+    const severity  = a.reaction?.[0]?.severity || '—';
+    const reaction  = a.reaction?.[0]?.manifestation?.[0]?.text || a.reaction?.[0]?.manifestation?.[0]?.coding?.[0]?.display || '—';
+    return `<tr>
+      <td><strong>${substance}</strong></td>
+      <td>${reaction}</td>
+      <td><span class="badge ${severityBadge[severity]||'badge-inactive'}">${severity}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('allergiesContent').innerHTML = `<table class="data-table">
+    <thead><tr><th>Substance</th><th>Reaction</th><th>Severity</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+// ── Encounters ────────────────────────────────────────────────────────────────
+
+async function loadEncounters() {
+  const bundle = await fetch(`${fhirBase()}/Encounter?patient=${currentPatient.id}&_count=100&_sort=-date`).then(r=>r.json());
+  const items = (bundle.entry||[]).map(e=>e.resource);
+  if (!items.length) { document.getElementById('encountersContent').innerHTML = '<div class="empty-state">No encounters on record.</div>'; return; }
+  const rows = items.map(e => {
+    const type   = e.type?.[0]?.text || e.class?.display || e.class?.code || '—';
+    const status = e.status || '—';
+    const start  = e.period?.start?.slice(0,10) || '—';
+    const end    = e.period?.end?.slice(0,10) || '—';
+    const badge  = status==='finished' ? 'badge-inactive' : status==='in-progress' ? 'badge-active' : 'badge-info';
+    return `<tr>
+      <td>${type}</td>
+      <td>${start}</td>
+      <td>${end}</td>
+      <td><span class="badge ${badge}">${status}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('encountersContent').innerHTML = `<table class="data-table">
+    <thead><tr><th>Type</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+// ── Notes & Documentation ─────────────────────────────────────────────────────
+
+async function loadNotes() {
+  isNewNote = false;
+  const items = document.getElementById('docItems');
+  items.innerHTML = '<div style="color:#a0aec0;font-size:0.78rem;padding:0.5rem;">Loading…</div>';
+
+  const bundle = await fetch(`${fhirBase()}/DocumentReference?subject=${currentPatient.id}&_count=100`).then(r=>r.json());
+  const docs = (bundle.entry||[]).map(e=>e.resource);
+
+  document.getElementById('docCount').textContent = `${docs.length} document${docs.length!==1?'s':''}`;
+
+  if (!docs.length) {
+    items.innerHTML = '<div style="color:#a0aec0;font-size:0.78rem;padding:0.5rem;">No documents found.</div>';
+    return;
+  }
+
+  items.innerHTML = '';
+  docs.forEach(doc => {
+    const title = doc.description || doc.type?.text || `Note ${doc.id}`;
+    const date  = doc.date ? new Date(doc.date).toLocaleString() : '—';
+    const el = document.createElement('div');
+    el.className = 'doc-item';
+    el.dataset.id = doc.id;
+    el.innerHTML = `<div class="doc-item-title">${title}</div><div class="doc-item-meta">${date}</div>`;
+    el.onclick = () => openNote(doc, el);
+    items.appendChild(el);
+  });
+}
+
+function openNote(doc, el) {
+  document.querySelectorAll('.doc-item').forEach(d => d.classList.remove('active'));
+  el.classList.add('active');
+  currentNoteId = doc.id;
+  isNewNote = false;
+
+  const b64  = doc.content?.[0]?.attachment?.data || '';
+  const text = b64 ? decodeURIComponent(escape(atob(b64))) : '(no content)';
+  const title = doc.description || doc.type?.text || 'Clinical Note';
+  const date  = doc.date?.slice(0,10) || '—';
+
+  renderEditor(title, `${date}  ·  ID: ${doc.id}`, text);
+}
+
+function newNote() {
+  document.querySelectorAll('.doc-item').forEach(d => d.classList.remove('active'));
+  currentNoteId = null;
+  isNewNote = true;
+  renderEditor('New Note', 'Unsaved', '');
+}
+
+function renderEditor(title, meta, text) {
+  const titleField = isNewNote
+    ? `<input id="noteTitle" value="${title === 'New Note' ? '' : title}" placeholder="Note title…" style="font-size:0.85rem;font-weight:600;color:#1a2b4a;border:none;border-bottom:1px solid #cbd5e0;outline:none;background:transparent;width:100%;padding-bottom:2px;">`
+    : `<div class="doc-editor-title">${title}</div>`;
+  document.getElementById('docEditor').innerHTML = `
+    <div class="doc-editor-header">
+      ${titleField}
+      <div class="doc-editor-meta" style="margin-top:0.25rem;">${meta}</div>
+    </div>
+    <textarea id="noteText">${text}</textarea>
+    <div class="doc-editor-footer">
+      <span style="font-size:0.72rem;color:#a0aec0;margin-right:auto;">Review before signing</span>
+      ${!isNewNote ? `<button class="btn btn-ghost" onclick="deleteNote()" style="color:#dc2626;border-color:#fca5a5;">Delete</button>` : ''}
+      <button class="btn btn-check" onclick="checkStigma()">Check for Stigma</button>
+      <button class="btn btn-sign" onclick="signNote()">Sign Note</button>
+    </div>
+  `;
+}
+
+async function deleteNote() {
+  if (!currentNoteId || !confirm('Delete this note? This cannot be undone.')) return;
+  const res = await fetch(`${fhirBase()}/DocumentReference/${currentNoteId}`, { method: 'DELETE' });
+  if (!res.ok) { alert(`Delete failed: ${res.status}`); return; }
+  currentNoteId = null;
+  loadedTabs.delete('notes');
+  loadNotes();
+  document.getElementById('docEditor').innerHTML = '<div class="doc-placeholder">Note deleted. Select another or create a new one.</div>';
+}
+
+// ── Sign / CDS ────────────────────────────────────────────────────────────────
+
+let _stigmaPopup = null;
+
+async function checkStigma() {
+  const noteText = document.getElementById('noteText')?.value || '';
+  const url = cdsUrl();
+
+  if (!url) { alert('No CDS service URL configured in the header.'); return; }
+
+  // Open popup immediately (before async fetch) to avoid popup blockers
+  _stigmaPopup = window.open('', 'stigmaReview', 'width=700,height=740,resizable=yes,scrollbars=yes');
+  _stigmaPopupWrite(_stigmaPopup, _stigmaLoadingPage());
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hook: 'note-sign',
+        hookInstance: crypto.randomUUID(),
+        context: { patientId: currentPatient?.id, noteText }
+      })
+    });
+    const data = await res.json();
+    const flags = data.cards || [];
+    window._stigmaFlags = flags;
+    _stigmaPopupWrite(_stigmaPopup, _stigmaResultsPage(flags));
+  } catch (e) {
+    _stigmaPopupWrite(_stigmaPopup, _stigmaErrorPage(e.message));
+  }
+}
+
+function _stigmaPopupWrite(win, html) {
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+}
+
+function _stigmaLoadingPage() {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stigma Review</title>
+  <style>
+    body { margin:0; font-family: system-ui, sans-serif; background:#f8fafc; display:flex; align-items:center; justify-content:center; height:100vh; }
+    .loading { text-align:center; color:#475569; }
+    .spinner { width:40px; height:40px; border:3px solid #e2e8f0; border-top-color:#1a2b4a; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 1rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { font-size:0.95rem; margin:0; }
+  </style></head><body>
+  <div class="loading"><div class="spinner"></div><p>Analyzing note for stigmatizing language…</p></div>
+  </body></html>`;
+}
+
+function _stigmaResultsPage(flags) {
+  const indicatorColor = { critical: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+  const cards = flags.length === 0
+    ? `<div style="text-align:center;padding:2rem;color:#276749;font-size:0.95rem;">✓ No stigmatizing language detected</div>`
+    : flags.map((c, i) => {
+        const ind = c.indicator || 'info';
+        const conf = c.confidence ? Math.round(c.confidence * 100) : null;
+        const color = indicatorColor[ind] || '#3b82f6';
+        return `
+        <div data-card style="margin:0.75rem;border-radius:8px;border:1px solid #e2e8f0;border-left:4px solid ${color};overflow:hidden;">
+          <div style="padding:0.6rem 0.85rem;background:white;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <span style="font-weight:600;font-size:0.88rem;color:${color};">"${c.flagged_span || ''}"</span>
+            ${conf ? `<span style="font-size:0.75rem;font-weight:700;color:${color};background:${color}1a;padding:1px 6px;border-radius:10px;">${conf}%</span>` : ''}
+            <span style="font-size:0.72rem;color:#94a3b8;margin-left:auto;">${(c.category || '').replace(/_/g,' ')}</span>
+          </div>
+          <div style="padding:0.6rem 0.85rem;background:#fafafa;border-top:1px solid #f0f0f0;">
+            <div style="font-size:0.82rem;color:#374151;line-height:1.5;margin-bottom:0.5rem;">${c.detail || ''}</div>
+            ${c.suggested_rewrite ? `
+            <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;padding:0.5rem 0.6rem;background:#eff6ff;border-radius:5px;border:1px solid #bfdbfe;">
+              <span style="font-size:0.8rem;color:#1e40af;flex:1;">"${c.suggested_rewrite}"</span>
+              <button onclick="window.opener.acceptRewrite(${i});this.textContent='Accepted ✓';this.disabled=true;this.style.background='#16a34a';this.nextElementSibling.style.display='none';"
+                style="font-size:0.75rem;padding:3px 10px;background:#1a2b4a;color:white;border:none;border-radius:4px;cursor:pointer;">Accept</button>
+              <button onclick="this.closest('[data-card]').remove();"
+                style="font-size:0.75rem;padding:3px 10px;background:white;color:#64748b;border:1px solid #cbd5e0;border-radius:4px;cursor:pointer;">Reject</button>
+            </div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stigma Language Review</title>
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; background:#f8fafc; }
+    .header { background:#1a2b4a; color:white; padding:0.75rem 1rem; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; }
+    .header h2 { margin:0; font-size:0.95rem; font-weight:600; }
+    .badge { font-size:0.75rem; background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:10px; }
+    .content { padding:0.25rem 0; }
+  </style></head><body>
+  <div class="header">
+    <h2>Stigma Language Review</h2>
+    ${flags.length ? `<span class="badge">${flags.length} flag${flags.length !== 1 ? 's' : ''}</span>` : ''}
+  </div>
+  <div class="content">${cards}</div>
+  </body></html>`;
+}
+
+function _stigmaErrorPage(msg) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stigma Review</title>
+  <style>body{margin:0;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#fff5f5;}</style></head>
+  <body><div style="text-align:center;color:#dc2626;"><p style="font-size:1rem;font-weight:600;">Error contacting CDS service</p><p style="font-size:0.82rem;">${msg}</p></div></body></html>`;
+}
+
+function acceptRewrite(index) {
+  const flag = window._stigmaFlags?.[index];
+  if (!flag?.suggested_rewrite || !flag?.flagged_span) return;
+  const ta = document.getElementById('noteText');
+  if (!ta) return;
+  const regex = new RegExp(flag.flagged_span.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  ta.value = ta.value.replace(regex, flag.suggested_rewrite);
+}
+
+async function signNote() {
+  pendingNoteText = document.getElementById('noteText')?.value || '';
+  pendingNoteTitle = document.getElementById('noteTitle')?.value?.trim() || 'Clinical Note';
+  const modal = document.getElementById('cdsModal');
+  const body  = document.getElementById('modalBody');
+
+  document.getElementById('btnSignAnyway').style.display = 'none';
+  document.getElementById('btnOk').style.display = 'none';
+  document.getElementById('btnCancel').style.display = '';
+
+  const url = cdsUrl();
+
+  if (!url) {
+    // No CDS configured — save directly
+    document.getElementById('modalTitle').textContent = 'Signing Note…';
+    body.innerHTML = '<div class="loading-msg">Signing…</div>';
+    if (!modal.open) modal.showModal();
+    await commitSign();
+    return;
+  }
+
+  // CDS first — don't save yet
+  document.getElementById('modalTitle').textContent = 'Reviewing Note…';
+  body.innerHTML = '<div class="loading-msg">Checking for stigmatizing language…</div>';
+  if (!modal.open) modal.showModal();
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hook: 'note-sign',
+        hookInstance: crypto.randomUUID(),
+        context: { patientId: currentPatient.id, noteText: pendingNoteText }
+      })
+    });
+    const data = await res.json();
+    pendingCards = data.cards || [];
+
+    if (!pendingCards.length) {
+      // Clear — sign automatically
+      document.getElementById('modalTitle').textContent = 'Note Review — Clear';
+      body.innerHTML = '<div class="loading-msg">No issues found. Signing note…</div>';
+      await commitSign();
+    } else {
+      const hasCritical = pendingCards.some(c => c.indicator === 'critical');
+      document.getElementById('modalTitle').textContent = hasCritical ? 'Note Review — Action Required' : 'Note Review — Flags Found';
+      body.innerHTML = pendingCards.map(c => `
+        <div class="cds-card ${c.indicator||'warning'}">
+          <h4>${c.summary||'Flag'}</h4>
+          <p>${c.detail||''}</p>
+        </div>`).join('') + (hasCritical ? `
+        <div class="override-box">
+          <label>Override reason required for high-confidence flags</label>
+          <textarea id="overrideReason" placeholder="Clinical justification for signing as-is…"></textarea>
+        </div>` : '');
+      document.getElementById('btnSignAnyway').style.display = '';
+    }
+  } catch (e) {
+    body.innerHTML = `<p style="color:#dc2626;font-size:0.83rem;">CDS service error: ${e}<br><small>Note was not signed.</small></p>`;
+    document.getElementById('btnOk').style.display = '';
+  }
+}
+
+function addDocItem(doc) {
+  const items = document.getElementById('docItems');
+  const title = doc.description || doc.type?.text || `Note ${doc.id}`;
+  const date  = doc.date ? new Date(doc.date).toLocaleString() : '—';
+  const el = document.createElement('div');
+  el.className = 'doc-item active';
+  el.dataset.id = doc.id;
+  el.innerHTML = `<div class="doc-item-title">${title}</div><div class="doc-item-meta">${date}</div>`;
+  el.onclick = () => openNote(doc, el);
+  document.querySelectorAll('.doc-item').forEach(d => d.classList.remove('active'));
+  items.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  renderEditor(title, `${date}  ·  ID: ${doc.id}`, pendingNoteText);
+}
+
+// Called after CDS approves (clear) or user confirms (sign anyway)
+async function commitSign() {
+  const modal = document.getElementById('cdsModal');
+  const body  = document.getElementById('modalBody');
+
+  if (isNewNote) {
+    try {
+      const created = await createDocumentReference(currentPatient.id, pendingNoteText);
+      isNewNote = false;
+      currentNoteId = created.id;
+      addDocItem(created);
+    } catch (e) {
+      document.getElementById('modalTitle').textContent = 'Save Failed';
+      body.innerHTML = `<p style="color:#dc2626;">Failed to save note: ${e}</p>`;
+      document.getElementById('btnOk').style.display = '';
+      return;
+    }
+  }
+
+  document.getElementById('modalTitle').textContent = 'Note Signed';
+  body.innerHTML = `<div class="cds-clear"><div class="icon">✓</div><p>Note signed successfully</p></div>`;
+  document.getElementById('btnCancel').style.display = 'none';
+  document.getElementById('btnOk').style.display = '';
+}
+
+async function createDocumentReference(patientId, text) {
+  const resource = {
+    resourceType: 'DocumentReference',
+    status: 'current',
+    description: pendingNoteTitle,
+    type: { text: 'Clinical Note' },
+    subject: { reference: `Patient/${patientId}` },
+    date: new Date().toISOString(),
+    content: [{ attachment: { contentType: 'text/markdown', data: btoa(unescape(encodeURIComponent(text))) } }]
+  };
+  const res = await fetch(`${fhirBase()}/DocumentReference`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/fhir+json' },
+    body: JSON.stringify(resource)
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+async function finalizeSign() {
+  const hasCritical = pendingCards.some(c => c.indicator === 'critical');
+  if (hasCritical) {
+    const reason = document.getElementById('overrideReason')?.value?.trim();
+    if (!reason) {
+      document.getElementById('overrideReason').classList.add('error');
+      return;
+    }
+    console.info('[StigmaGuard] Override logged', { patientId: currentPatient.id, noteId: currentNoteId, reason });
+  }
+  document.getElementById('btnSignAnyway').style.display = 'none';
+  await commitSign();
+}
+
+// Boot
+loadPatients();
+</script>
+</body>
+</html>
