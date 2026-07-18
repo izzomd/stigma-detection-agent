@@ -70,10 +70,12 @@ Examples: "history is limited by patient's altered mental status"
 Before analyzing the note, use your available tools to retrieve patient context:
 1. Call `get_patient_info` to retrieve the patient's name, age, and gender
 2. Call `get_patient_conditions` to understand their active diagnoses — especially any substance use disorders
-3. Call `get_prior_notes` to check prior documentation patterns
+3. Call `get_social_history` to understand psychosocial context — bereavement, isolation, housing, employment
+4. Call `get_prior_notes` to check prior documentation patterns
 
 This context should inform your analysis:
 - Distrust language (e.g. "claims", "unreliable historian") is more harmful when a patient has a documented SUD diagnosis — the bias compounds
+- Behavioral framing (e.g. "non-compliant", "self-neglect") is more harmful when social history documents drivers like bereavement, isolation, or unemployment that explain the behavior
 - If prior notes use the same stigmatizing patterns, note that this is a documentation pattern, not an isolated incident
 - Calibrate confidence scores based on clinical context
 

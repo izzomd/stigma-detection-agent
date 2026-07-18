@@ -39,6 +39,17 @@ TOOLS = [
             },
             "required": ["patient_id"]
         }
+    },
+    {
+        "name": "get_social_history",
+        "description": "Retrieve social history observations for a patient (living situation, employment, housing, bereavement, social support). Use this to understand psychosocial context that may explain behaviors documented in the note.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "patient_id": {"type": "string", "description": "The FHIR patient ID"}
+            },
+            "required": ["patient_id"]
+        }
     }
 ]
 
@@ -77,6 +88,21 @@ def _execute_tool(name: str, inputs: dict, fhir_base: str) -> dict:
                     conditions.append({"display": display, "code": code})
             return {"conditions": conditions}
 
+        elif name == "get_social_history":
+            r = requests.get(
+                f"{fhir_base}/Observation?patient={patient_id}&category=social-history&_count=20",
+                timeout=5
+            )
+            data = r.json()
+            items = []
+            for entry in data.get("entry", []):
+                obs = entry["resource"]
+                label = obs.get("code", {}).get("text", "")
+                value = obs.get("valueString", "")
+                if label and value:
+                    items.append({"label": label, "value": value})
+            return {"social_history": items}
+
         elif name == "get_prior_notes":
             count = inputs.get("count", 5)
             r = requests.get(
@@ -111,6 +137,12 @@ def _summarize_tool_result(name: str, result: dict) -> str:
         suffix = f" +{len(conditions)-3} more" if len(conditions) > 3 else ""
         return "; ".join(displays) + suffix
 
+    elif name == "get_social_history":
+        items = result.get("social_history", [])
+        if not items:
+            return "No social history on record"
+        return "; ".join(i["value"] for i in items[:4])
+
     elif name == "get_prior_notes":
         notes = result.get("notes", [])
         if not notes:
@@ -125,6 +157,7 @@ def _tool_label(name: str) -> str:
         "get_patient_info": "Retrieving patient demographics",
         "get_patient_conditions": "Querying active conditions",
         "get_prior_notes": "Loading prior documentation",
+        "get_social_history": "Retrieving social history",
     }.get(name, name)
 
 
