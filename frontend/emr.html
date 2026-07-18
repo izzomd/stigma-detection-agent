@@ -16,6 +16,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .header-config label { font-size: 0.65rem; color: #8aa0c0; text-transform: uppercase; letter-spacing: 0.05em; }
 .header-config input { padding: 0.28rem 0.55rem; font-size: 0.75rem; border: 1px solid #3a5070; background: #243654; color: white; border-radius: 4px; width: 230px; }
 .header-config input::placeholder { color: #6a88a8; }
+.toggle-field { display:flex; flex-direction:column; gap:4px; align-items:center; }
+.toggle-field label { font-size:0.65rem; color:#8aa0c0; text-transform:uppercase; letter-spacing:0.05em; }
+.toggle-wrap { display:flex; align-items:center; gap:0.4rem; }
+.toggle-wrap span { font-size:0.7rem; color:#8aa0c0; }
+.toggle-wrap span.active { color:#60a5fa; font-weight:600; }
+.toggle { position:relative; display:inline-block; width:36px; height:20px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; inset:0; background:#3a5070; border-radius:20px; cursor:pointer; transition:0.2s; }
+.toggle-slider:before { content:""; position:absolute; width:14px; height:14px; left:3px; bottom:3px; background:white; border-radius:50%; transition:0.2s; }
+.toggle input:checked + .toggle-slider { background:#2563eb; }
+.toggle input:checked + .toggle-slider:before { transform:translateX(16px); }
 
 /* Patient list view */
 .patient-list-view { flex: 1; overflow: auto; padding: 1.5rem; }
@@ -136,6 +147,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .doc-editor-meta { font-size: 0.7rem; color: #a0aec0; margin-top: 0.15rem; font-family: monospace; }
 .doc-editor textarea { flex: 1; padding: 1rem; font-family: Georgia, serif; font-size: 0.87rem; line-height: 1.7; border: none; resize: none; outline: none; color: #2d3748; }
 .doc-editor-footer { padding: 0.7rem 1rem; border-top: 1px solid #e2e8f0; background: #f7f9fc; display: flex; justify-content: flex-end; gap: 0.5rem; align-items: center; }
+.doc-editor-footer .btn { min-width: 100px; text-align: center; white-space: nowrap; }
 .doc-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: #a0aec0; font-size: 0.85rem; }
 
 /* Buttons */
@@ -145,6 +157,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-sm { padding: 0.28rem 0.7rem; font-size: 0.73rem; }
 .btn-sign { background: #dc2626; color: white; }
 .btn-sign:hover { background: #b91c1c; }
+.btn-delete { background: #6b7280; color: white; border: none; }
+.btn-delete:hover { background: #4b5563; }
 .btn-ghost { background: white; color: #4a5568; border: 1px solid #cbd5e0; }
 .btn-ghost:hover { background: #f7f9fc; }
 
@@ -188,6 +202,17 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
     <div class="field">
       <label>CDS Service URL</label>
       <input id="cdsUrl" value="http://localhost:8004/cds-services/note-sign">
+    </div>
+    <div class="toggle-field">
+      <label>Auto Review</label>
+      <div class="toggle-wrap">
+        <span id="toggleOff">Off</span>
+        <label class="toggle">
+          <input type="checkbox" id="autoReview" checked>
+          <span class="toggle-slider"></span>
+        </label>
+        <span id="toggleOn" class="active">On</span>
+      </div>
     </div>
   </div>
 </div>
@@ -587,7 +612,7 @@ function renderEditor(title, meta, text) {
     <textarea id="noteText">${text}</textarea>
     <div class="doc-editor-footer">
       <span style="font-size:0.72rem;color:#a0aec0;margin-right:auto;">Review before signing</span>
-      ${!isNewNote ? `<button class="btn btn-ghost" onclick="deleteNote()" style="color:#dc2626;border-color:#fca5a5;">Delete</button>` : ''}
+      ${!isNewNote ? `<button class="btn btn-delete" onclick="deleteNote()">Delete</button>` : ''}
       <button class="btn btn-check" onclick="checkStigma()">Check for Stigma</button>
       <button class="btn btn-sign" onclick="signNote()">Sign Note</button>
     </div>
@@ -611,32 +636,36 @@ let _stigmaPopup = null;
 async function checkStigma() {
   const noteText = document.getElementById('noteText')?.value || '';
   const url = cdsUrl();
-
   if (!url) { alert('No CDS service URL configured in the header.'); return; }
 
-  // Open popup immediately (before async fetch) to avoid popup blockers
+  // Open popup immediately to avoid popup blockers
   _stigmaPopup = window.open('', 'stigmaReview', 'width=700,height=740,resizable=yes,scrollbars=yes');
   _stigmaPopupWrite(_stigmaPopup, _stigmaLoadingPage());
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        hook: 'note-sign',
-        hookInstance: crypto.randomUUID(),
-        context: { patientId: currentPatient?.id, noteText }
-      })
-    });
-    const data = await res.json();
+    const data = await _callCDS(noteText);
     const flags = data.cards || [];
     const toolCalls = data.tool_calls || [];
     const patientName = document.getElementById('bannerName')?.textContent || '';
     window._stigmaFlags = flags;
-    _stigmaPopupWrite(_stigmaPopup, _stigmaResultsPage(flags, toolCalls, patientName));
+    _stigmaPopupWrite(_stigmaPopup, _stigmaResultsPage(flags, toolCalls, patientName, false));
   } catch (e) {
     _stigmaPopupWrite(_stigmaPopup, _stigmaErrorPage(e.message));
   }
+}
+
+async function _callCDS(noteText) {
+  const url = cdsUrl();
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      hook: 'note-sign',
+      hookInstance: crypto.randomUUID(),
+      context: { patientId: currentPatient?.id, noteText }
+    })
+  });
+  return res.json();
 }
 
 function _stigmaPopupWrite(win, html) {
@@ -733,7 +762,7 @@ function _stigmaResultsPage(flags, toolCalls = [], patientName = '') {
       <h2>Stigma Language Review</h2>
       ${patientName ? `<div style="font-size:0.75rem;color:#93c5fd;margin-top:1px;">${patientName}</div>` : ''}
     </div>
-    ${flags.length ? `<span class="badge">${flags.length} flag${flags.length !== 1 ? 's' : ''}</span>` : ''}
+    ${flags.length ? `<span class="badge">${flags.length} suggestion${flags.length !== 1 ? 's' : ''}</span>` : ''}
   </div>
   ${toolCalls.length ? `
   <div class="agent-section">
@@ -741,8 +770,122 @@ function _stigmaResultsPage(flags, toolCalls = [], patientName = '') {
     ${toolRows}
   </div>` : ''}
   <div class="findings-section">${cards}</div>
-  <div class="findings-section" style="text-align:center;padding:1rem 1rem 1.5rem;animation-delay:${findingsDelay}s;">
+  <div class="findings-section" style="text-align:center;padding:1rem 1rem 1.5rem;display:flex;justify-content:center;gap:0.75rem;animation-delay:${findingsDelay}s;">
     <button onclick="window.close();" style="font-size:0.8rem;padding:6px 20px;background:white;color:#64748b;border:1px solid #cbd5e0;border-radius:5px;cursor:pointer;">Close</button>
+  </div>
+  </body></html>`;
+}
+
+function _cdsHookBanner() {
+  return `<div style="background:#fefce8;border-bottom:1px solid #fde68a;padding:0.4rem 1rem;font-size:0.72rem;color:#92400e;display:flex;align-items:center;gap:0.4rem;">
+    <span style="font-weight:700;">⚡ CDS Hook: note-sign</span>
+    <span style="color:#b45309;">— Demonstration only. In production this fires automatically at sign-time.</span>
+  </div>`;
+}
+
+function _cdsHookLoadingPage() {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>CDS Hook: note-sign</title>
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,sans-serif; background:#f8fafc; }
+    .header { background:#1a2b4a; color:white; padding:0.75rem 1rem; }
+    .header h2 { margin:0; font-size:0.95rem; font-weight:600; }
+    .header p { margin:0.15rem 0 0; font-size:0.75rem; color:#93c5fd; }
+    .body { display:flex; align-items:center; justify-content:center; height:calc(100vh - 90px); flex-direction:column; gap:1rem; color:#475569; }
+    .spinner { width:36px; height:36px; border:3px solid #e2e8f0; border-top-color:#1a2b4a; border-radius:50%; animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    p { font-size:0.9rem; margin:0; }
+  </style></head><body>
+  <div class="header"><h2>Stigma Language Detector</h2><p>CDS Hook: note-sign</p></div>
+  ${_cdsHookBanner()}
+  <div class="body"><div class="spinner"></div><p>Agent is reviewing this note…</p></div>
+  </body></html>`;
+}
+
+function _cdsHookResultsPage(flags, toolCalls = [], patientName = '') {
+  const indicatorColor = { critical: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+
+  const toolRows = toolCalls.map((t, i) => {
+    const delay = (i * 0.5).toFixed(1);
+    return `<div class="tool-row" style="animation-delay:${delay}s;">
+      <span class="tool-check">✓</span>
+      <span class="tool-label">${t.label || t.tool}</span>
+      <span class="tool-summary">${t.summary || ''}</span>
+    </div>`;
+  }).join('');
+
+  const findingsDelay = toolCalls.length > 0 ? (toolCalls.length * 0.5 + 0.4).toFixed(1) : '0';
+
+  const body = flags.length === 0
+    ? `<div style="text-align:center;padding:2.5rem;color:#276749;">
+        <div style="font-size:2rem;margin-bottom:0.5rem;">✓</div>
+        <div style="font-size:0.95rem;font-weight:600;">No suggestions — note is clear</div>
+        <div style="font-size:0.8rem;color:#6b7280;margin-top:0.3rem;">Sign note to continue</div>
+      </div>`
+    : flags.map((c, i) => {
+        const ind = c.indicator || 'info';
+        const conf = c.confidence ? Math.round(c.confidence * 100) : null;
+        const color = indicatorColor[ind] || '#3b82f6';
+        return `
+        <div data-card style="margin:0.75rem;border-radius:8px;border:1px solid #e2e8f0;border-left:4px solid ${color};overflow:hidden;">
+          <div style="padding:0.6rem 0.85rem;background:white;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <span style="font-weight:600;font-size:0.88rem;color:${color};">"${c.flagged_span || ''}"</span>
+            ${conf ? `<span style="font-size:0.75rem;font-weight:700;color:${color};background:${color}1a;padding:1px 6px;border-radius:10px;">${conf}%</span>` : ''}
+            <span style="font-size:0.72rem;color:#94a3b8;margin-left:auto;">${(c.category || '').replace(/_/g,' ')}</span>
+          </div>
+          <div style="padding:0.6rem 0.85rem;background:#fafafa;border-top:1px solid #f0f0f0;">
+            <div style="font-size:0.82rem;color:#374151;line-height:1.5;margin-bottom:0.5rem;">${c.detail || ''}</div>
+            ${c.suggested_rewrite ? `
+            <div style="margin-top:0.5rem;border-radius:6px;overflow:hidden;border:1px solid #bbf7d0;">
+              <div style="background:#f0fdf4;padding:0.3rem 0.7rem;font-size:0.68rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#15803d;">Suggested revision</div>
+              <div style="background:white;padding:0.45rem 0.7rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                <span style="font-size:0.83rem;color:#166534;flex:1;font-style:italic;">"${c.suggested_rewrite}"</span>
+                <button onclick="window.opener.acceptRewrite(${i});this.textContent='Accepted ✓';this.disabled=true;this.style.background='#16a34a';this.nextElementSibling.style.display='none';"
+                  style="font-size:0.75rem;padding:4px 12px;background:#16a34a;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Accept</button>
+                <button onclick="this.closest('[data-card]').remove();"
+                  style="font-size:0.75rem;padding:4px 10px;background:white;color:#64748b;border:1px solid #cbd5e0;border-radius:4px;cursor:pointer;">Reject</button>
+              </div>
+            </div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>CDS Hook: note-sign</title>
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,sans-serif; background:#f8fafc; }
+    .header { background:#1a2b4a; color:white; padding:0.75rem 1rem; position:sticky; top:0; z-index:10; display:flex; align-items:center; justify-content:space-between; }
+    .header-left h2 { margin:0; font-size:0.95rem; font-weight:600; }
+    .header-left p { margin:0.15rem 0 0; font-size:0.75rem; color:#93c5fd; }
+    .badge { font-size:0.75rem; background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:10px; }
+    .agent-section { padding:1rem 1.25rem; border-bottom:1px solid #e2e8f0; background:white; }
+    .agent-label { font-size:0.7rem; font-weight:700; letter-spacing:0.08em; color:#94a3b8; text-transform:uppercase; margin-bottom:0.6rem; }
+    .tool-row { display:flex; align-items:baseline; gap:0.6rem; padding:0.3rem 0; font-size:0.83rem; opacity:0; animation:fadeIn 0.35s ease forwards; }
+    .tool-check { color:#16a34a; font-weight:700; flex-shrink:0; }
+    .tool-label { color:#374151; font-weight:500; flex-shrink:0; }
+    .tool-summary { color:#6b7280; font-size:0.78rem; }
+    .findings-section { opacity:0; animation:fadeIn 0.4s ease forwards; animation-delay:${findingsDelay}s; }
+    @keyframes fadeIn { to { opacity:1; } }
+  </style></head><body>
+  <div class="header">
+    <div class="header-left">
+      <h2>Stigma Language Detector</h2>
+      <p>${patientName ? `${patientName} · ` : ''}CDS Hook: note-sign</p>
+    </div>
+    ${flags.length ? `<span class="badge">${flags.length} suggestion${flags.length !== 1 ? 's' : ''}</span>` : ''}
+  </div>
+  ${_cdsHookBanner()}
+  ${toolCalls.length ? `
+  <div class="agent-section">
+    <div class="agent-label">Agent queries</div>
+    ${toolRows}
+  </div>` : ''}
+  <div class="findings-section">${body}</div>
+  <div class="findings-section" style="text-align:center;padding:1rem 1rem 1.5rem;display:flex;justify-content:center;gap:0.75rem;animation-delay:${findingsDelay}s;">
+    <button onclick="window.close();window.opener.commitSign();"
+      style="font-size:0.82rem;padding:6px 20px;background:#1a2b4a;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;">Sign Note</button>
+    <button onclick="window.close();"
+      style="font-size:0.82rem;padding:6px 16px;background:white;color:#64748b;border:1px solid #cbd5e0;border-radius:5px;cursor:pointer;">Close &amp; Revise</button>
   </div>
   </body></html>`;
 }
@@ -760,73 +903,35 @@ function acceptRewrite(index) {
   if (!ta) return;
   const regex = new RegExp(flag.flagged_span.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
   ta.value = ta.value.replace(regex, flag.suggested_rewrite);
+  pendingNoteText = ta.value;
 }
 
 async function signNote() {
   pendingNoteText = document.getElementById('noteText')?.value || '';
   pendingNoteTitle = document.getElementById('noteTitle')?.value?.trim() || 'Clinical Note';
-  const modal = document.getElementById('cdsModal');
-  const body  = document.getElementById('modalBody');
-
-  document.getElementById('btnSignAnyway').style.display = 'none';
-  document.getElementById('btnOk').style.display = 'none';
-  document.getElementById('btnCancel').style.display = '';
 
   const url = cdsUrl();
+  const autoReview = document.getElementById('autoReview')?.checked;
 
-  if (!url) {
-    // No CDS configured — save directly
-    document.getElementById('modalTitle').textContent = 'Signing Note…';
-    body.innerHTML = '<div class="loading-msg">Signing…</div>';
-    if (!modal.open) modal.showModal();
-    await commitSign();
-    return;
-  }
+  if (!autoReview || !url) { await commitSign(); return; }
 
-  // CDS first — don't save yet
-  document.getElementById('modalTitle').textContent = 'Reviewing Note…';
-  body.innerHTML = '<div class="loading-msg">Checking for stigmatizing language…</div>';
-  if (!modal.open) modal.showModal();
+  // Always open popup immediately so the CDS Hook firing is visible
+  _stigmaPopup = window.open('', 'stigmaReview', 'width=700,height=760,resizable=yes,scrollbars=yes');
+  _stigmaPopupWrite(_stigmaPopup, _cdsHookLoadingPage());
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        hook: 'note-sign',
-        hookInstance: crypto.randomUUID(),
-        context: { patientId: currentPatient.id, noteText: pendingNoteText }
-      })
-    });
-    const data = await res.json();
-    pendingCards = data.cards || [];
-
-    if (!pendingCards.length) {
-      // Clear — sign automatically
-      document.getElementById('modalTitle').textContent = 'Note Review — Clear';
-      body.innerHTML = '<div class="loading-msg">No issues found. Signing note…</div>';
-      await commitSign();
-    } else {
-      const hasCritical = pendingCards.some(c => c.indicator === 'critical');
-      document.getElementById('modalTitle').textContent = hasCritical ? 'Note Review — Action Required' : 'Note Review — Flags Found';
-      body.innerHTML = pendingCards.map(c => `
-        <div class="cds-card ${c.indicator||'warning'}">
-          <h4>${c.summary||'Flag'}</h4>
-          <p>${c.detail||''}</p>
-        </div>`).join('') + (hasCritical ? `
-        <div class="override-box">
-          <label>Override reason required for high-confidence flags</label>
-          <textarea id="overrideReason" placeholder="Clinical justification for signing as-is…"></textarea>
-        </div>` : '');
-      document.getElementById('btnSignAnyway').style.display = '';
-    }
+    const data = await _callCDS(pendingNoteText);
+    const flags = data.cards || [];
+    const toolCalls = data.tool_calls || [];
+    const patientName = document.getElementById('bannerName')?.textContent || '';
+    window._stigmaFlags = flags;
+    _stigmaPopupWrite(_stigmaPopup, _cdsHookResultsPage(flags, toolCalls, patientName));
   } catch (e) {
-    body.innerHTML = `<p style="color:#dc2626;font-size:0.83rem;">CDS service error: ${e}<br><small>Note was not signed.</small></p>`;
-    document.getElementById('btnOk').style.display = '';
+    _stigmaPopupWrite(_stigmaPopup, _stigmaErrorPage(e.message));
   }
 }
 
-function addDocItem(doc) {
+function addDocItem(doc, savedText) {
   const items = document.getElementById('docItems');
   const title = doc.description || doc.type?.text || `Note ${doc.id}`;
   const date  = doc.date ? new Date(doc.date).toLocaleString() : '—';
@@ -838,7 +943,7 @@ function addDocItem(doc) {
   document.querySelectorAll('.doc-item').forEach(d => d.classList.remove('active'));
   items.appendChild(el);
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  renderEditor(title, `${date}  ·  ID: ${doc.id}`, pendingNoteText);
+  renderEditor(title, `${date}  ·  ID: ${doc.id}`, savedText ?? pendingNoteText);
 }
 
 // Called after CDS approves (clear) or user confirms (sign anyway)
@@ -846,12 +951,21 @@ async function commitSign() {
   const modal = document.getElementById('cdsModal');
   const body  = document.getElementById('modalBody');
 
+  document.getElementById('modalTitle').textContent = 'Signing…';
+  body.innerHTML = '<div class="loading-msg">Saving note…</div>';
+  document.getElementById('btnCancel').style.display = 'none';
+  document.getElementById('btnOk').style.display = 'none';
+  document.getElementById('btnSignAnyway').style.display = 'none';
+  if (!modal.open) modal.showModal();
+
   if (isNewNote) {
+    // Always read current textarea — may have been updated by accepted rewrites
+    const textToSave = document.getElementById('noteText')?.value || pendingNoteText;
     try {
-      const created = await createDocumentReference(currentPatient.id, pendingNoteText);
+      const created = await createDocumentReference(currentPatient.id, textToSave);
       isNewNote = false;
       currentNoteId = created.id;
-      addDocItem(created);
+      addDocItem(created, textToSave);
     } catch (e) {
       document.getElementById('modalTitle').textContent = 'Save Failed';
       body.innerHTML = `<p style="color:#dc2626;">Failed to save note: ${e}</p>`;
@@ -862,7 +976,6 @@ async function commitSign() {
 
   document.getElementById('modalTitle').textContent = 'Note Signed';
   body.innerHTML = `<div class="cds-clear"><div class="icon">✓</div><p>Note signed successfully</p></div>`;
-  document.getElementById('btnCancel').style.display = 'none';
   document.getElementById('btnOk').style.display = '';
 }
 
@@ -898,6 +1011,11 @@ async function finalizeSign() {
   document.getElementById('btnSignAnyway').style.display = 'none';
   await commitSign();
 }
+
+document.getElementById('autoReview').addEventListener('change', function() {
+  document.getElementById('toggleOn').classList.toggle('active', this.checked);
+  document.getElementById('toggleOff').classList.toggle('active', !this.checked);
+});
 
 // Boot
 loadPatients();

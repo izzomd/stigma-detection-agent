@@ -1,10 +1,10 @@
 import os, json
-from flask import Flask, request, jsonify
 from dotenv import load_dotenv
+load_dotenv()
+
+from flask import Flask, request, jsonify
 from agent import detect_stigma
 from tiering import flags_to_cards
-
-load_dotenv()
 
 app = Flask(__name__)
 
@@ -13,6 +13,12 @@ def cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return response
+
+@app.errorhandler(Exception)
+def handle_error(e):
+    response = jsonify({"error": str(e), "cards": [], "tool_calls": []})
+    response.status_code = 500
     return response
 
 @app.route("/cds-services", methods=["GET", "OPTIONS"])
@@ -48,4 +54,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     print(f"CDS service running on http://localhost:{port}")
     print(f"Detection mode: {'MOCK (no API key)' if not os.environ.get('ANTHROPIC_API_KEY') else 'Claude API'}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True, use_reloader=False)

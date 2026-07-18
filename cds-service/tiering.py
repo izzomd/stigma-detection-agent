@@ -10,7 +10,7 @@ def flags_to_cards(flags: list[dict]) -> list[dict]:
             indicator = "info"
 
         cards.append({
-            "summary": f"Stigmatizing language detected: \"{flag.get('flagged_span', '')}\"",
+            "summary": f"Consider revising: \"{flag.get('flagged_span', '')}\"",
             "indicator": indicator,
             "detail": flag.get("reason", ""),
             "flagged_span": flag.get("flagged_span", ""),

@@ -94,7 +94,7 @@ Return ONLY valid JSON in this exact format — no preamble, no explanation outs
       "category": "category_name",
       "confidence": 0.0,
       "reason": "Why this language is harmful in clinical documentation",
-      "suggested_rewrite": "A patient-centered alternative"
+      "suggested_rewrite": "A single patient-centered alternative phrase — do not offer multiple options or use the word 'or' between alternatives"
     }
   ]
 }

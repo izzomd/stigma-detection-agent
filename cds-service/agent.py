@@ -132,11 +132,18 @@ def _parse_flags(raw: str) -> list[dict]:
     match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
     if match:
         raw = match.group(1)
+    else:
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if m:
+            raw = m.group()
+
+    # Fix: Claude sometimes writes "option A" or "option B" in string values
+    raw = re.sub(r'("(?:[^"\\]|\\.)*")\s+or\s+"(?:[^"\\]|\\.)*"', r'\1', raw)
+
     try:
         return json.loads(raw).get("flags", [])
     except json.JSONDecodeError:
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        return json.loads(m.group()).get("flags", []) if m else []
+        return []
 
 
 # ── Mock detection ────────────────────────────────────────────────────────────
