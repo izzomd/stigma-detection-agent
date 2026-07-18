@@ -1,0 +1,12 @@
+# Private planning
+PROJECT_SUMMARY.md
+
+# Pre-hackathon scratch work
+old/
+stigma_data/
+
+# Secrets
+.env
+
+# OS
+.DS_Store
