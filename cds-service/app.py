@@ -40,9 +40,9 @@ def note_sign():
     if not note_text.strip():
         return jsonify({"cards": []})
 
-    flags = detect_stigma(note_text, patient_id=patient_id)
-    cards = flags_to_cards(flags)
-    return jsonify({"cards": cards})
+    result = detect_stigma(note_text, patient_id=patient_id)
+    cards = flags_to_cards(result["flags"])
+    return jsonify({"cards": cards, "tool_calls": result.get("tool_calls", [])})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))

@@ -63,9 +63,21 @@ Examples: "history is limited by patient's altered mental status"
 
 ---
 
+---
+
 ## Instructions
 
-Analyze the provided clinical note. For each instance of stigmatizing language you identify:
+Before analyzing the note, use your available tools to retrieve patient context:
+1. Call `get_patient_info` to retrieve the patient's name, age, and gender
+2. Call `get_patient_conditions` to understand their active diagnoses — especially any substance use disorders
+3. Call `get_prior_notes` to check prior documentation patterns
+
+This context should inform your analysis:
+- Distrust language (e.g. "claims", "unreliable historian") is more harmful when a patient has a documented SUD diagnosis — the bias compounds
+- If prior notes use the same stigmatizing patterns, note that this is a documentation pattern, not an isolated incident
+- Calibrate confidence scores based on clinical context
+
+After retrieving context, analyze the provided clinical note. For each instance of stigmatizing language you identify:
 - Quote the exact flagged span (keep it short — the word or phrase, not the whole sentence)
 - Identify the category from the taxonomy above
 - Assign a confidence score (0.0–1.0) reflecting how clearly stigmatizing it is

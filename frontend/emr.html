@@ -630,8 +630,10 @@ async function checkStigma() {
     });
     const data = await res.json();
     const flags = data.cards || [];
+    const toolCalls = data.tool_calls || [];
+    const patientName = document.getElementById('bannerName')?.textContent || '';
     window._stigmaFlags = flags;
-    _stigmaPopupWrite(_stigmaPopup, _stigmaResultsPage(flags));
+    _stigmaPopupWrite(_stigmaPopup, _stigmaResultsPage(flags, toolCalls, patientName));
   } catch (e) {
     _stigmaPopupWrite(_stigmaPopup, _stigmaErrorPage(e.message));
   }
@@ -647,18 +649,38 @@ function _stigmaPopupWrite(win, html) {
 function _stigmaLoadingPage() {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stigma Review</title>
   <style>
-    body { margin:0; font-family: system-ui, sans-serif; background:#f8fafc; display:flex; align-items:center; justify-content:center; height:100vh; }
-    .loading { text-align:center; color:#475569; }
-    .spinner { width:40px; height:40px; border:3px solid #e2e8f0; border-top-color:#1a2b4a; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 1rem; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    p { font-size:0.95rem; margin:0; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; background:#f8fafc; }
+    .header { background:#1a2b4a; color:white; padding:0.75rem 1rem; }
+    .header h2 { margin:0; font-size:0.95rem; font-weight:600; }
+    .agent-section { padding:1.25rem 1.25rem 0; }
+    .agent-label { font-size:0.7rem; font-weight:700; letter-spacing:0.08em; color:#94a3b8; text-transform:uppercase; margin-bottom:0.75rem; }
+    .tool-row { display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0; color:#475569; font-size:0.85rem; }
+    .spinner { width:16px; height:16px; border:2px solid #e2e8f0; border-top-color:#1a2b4a; border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0; }
+    @keyframes spin { to { transform:rotate(360deg); } }
   </style></head><body>
-  <div class="loading"><div class="spinner"></div><p>Analyzing note for stigmatizing language…</p></div>
+  <div class="header"><h2>Stigma Language Review</h2></div>
+  <div class="agent-section">
+    <div class="agent-label">Agent querying patient records</div>
+    <div class="tool-row"><div class="spinner"></div> Connecting to FHIR server…</div>
+  </div>
   </body></html>`;
 }
 
-function _stigmaResultsPage(flags) {
+function _stigmaResultsPage(flags, toolCalls = [], patientName = '') {
   const indicatorColor = { critical: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+
+  const toolRows = toolCalls.map((t, i) => {
+    const delay = (i * 0.5).toFixed(1);
+    return `<div class="tool-row" style="animation-delay:${delay}s;">
+      <span class="tool-check">✓</span>
+      <span class="tool-label">${t.label || t.tool}</span>
+      <span class="tool-summary">${t.summary || ''}</span>
+    </div>`;
+  }).join('');
+
+  const findingsDelay = toolCalls.length > 0 ? (toolCalls.length * 0.5 + 0.4).toFixed(1) : '0';
+
   const cards = flags.length === 0
     ? `<div style="text-align:center;padding:2rem;color:#276749;font-size:0.95rem;">✓ No stigmatizing language detected</div>`
     : flags.map((c, i) => {
@@ -675,12 +697,15 @@ function _stigmaResultsPage(flags) {
           <div style="padding:0.6rem 0.85rem;background:#fafafa;border-top:1px solid #f0f0f0;">
             <div style="font-size:0.82rem;color:#374151;line-height:1.5;margin-bottom:0.5rem;">${c.detail || ''}</div>
             ${c.suggested_rewrite ? `
-            <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;padding:0.5rem 0.6rem;background:#eff6ff;border-radius:5px;border:1px solid #bfdbfe;">
-              <span style="font-size:0.8rem;color:#1e40af;flex:1;">"${c.suggested_rewrite}"</span>
-              <button onclick="window.opener.acceptRewrite(${i});this.textContent='Accepted ✓';this.disabled=true;this.style.background='#16a34a';this.nextElementSibling.style.display='none';"
-                style="font-size:0.75rem;padding:3px 10px;background:#1a2b4a;color:white;border:none;border-radius:4px;cursor:pointer;">Accept</button>
-              <button onclick="this.closest('[data-card]').remove();"
-                style="font-size:0.75rem;padding:3px 10px;background:white;color:#64748b;border:1px solid #cbd5e0;border-radius:4px;cursor:pointer;">Reject</button>
+            <div style="margin-top:0.5rem;border-radius:6px;overflow:hidden;border:1px solid #bbf7d0;">
+              <div style="background:#f0fdf4;padding:0.3rem 0.7rem;font-size:0.68rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#15803d;">Suggested revision</div>
+              <div style="background:white;padding:0.45rem 0.7rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                <span style="font-size:0.83rem;color:#166534;flex:1;font-style:italic;">"${c.suggested_rewrite}"</span>
+                <button onclick="window.opener.acceptRewrite(${i});this.textContent='Accepted ✓';this.disabled=true;this.style.background='#16a34a';this.nextElementSibling.style.display='none';"
+                  style="font-size:0.75rem;padding:4px 12px;background:#16a34a;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Accept</button>
+                <button onclick="this.closest('[data-card]').remove();"
+                  style="font-size:0.75rem;padding:4px 10px;background:white;color:#64748b;border:1px solid #cbd5e0;border-radius:4px;cursor:pointer;">Reject</button>
+              </div>
             </div>` : ''}
           </div>
         </div>`;
@@ -690,16 +715,35 @@ function _stigmaResultsPage(flags) {
   <style>
     * { box-sizing:border-box; }
     body { margin:0; font-family: system-ui, sans-serif; background:#f8fafc; }
-    .header { background:#1a2b4a; color:white; padding:0.75rem 1rem; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; }
+    .header { background:#1a2b4a; color:white; padding:0.75rem 1rem; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
     .header h2 { margin:0; font-size:0.95rem; font-weight:600; }
     .badge { font-size:0.75rem; background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:10px; }
-    .content { padding:0.25rem 0; }
+    .agent-section { padding:1rem 1.25rem; border-bottom:1px solid #e2e8f0; background:white; }
+    .agent-label { font-size:0.7rem; font-weight:700; letter-spacing:0.08em; color:#94a3b8; text-transform:uppercase; margin-bottom:0.6rem; }
+    .tool-row { display:flex; align-items:baseline; gap:0.6rem; padding:0.3rem 0; font-size:0.83rem;
+                opacity:0; animation:fadeIn 0.35s ease forwards; }
+    .tool-check { color:#16a34a; font-weight:700; flex-shrink:0; }
+    .tool-label { color:#374151; font-weight:500; flex-shrink:0; }
+    .tool-summary { color:#6b7280; font-size:0.78rem; }
+    .findings-section { opacity:0; animation:fadeIn 0.4s ease forwards; animation-delay:${findingsDelay}s; }
+    @keyframes fadeIn { to { opacity:1; } }
   </style></head><body>
   <div class="header">
-    <h2>Stigma Language Review</h2>
+    <div>
+      <h2>Stigma Language Review</h2>
+      ${patientName ? `<div style="font-size:0.75rem;color:#93c5fd;margin-top:1px;">${patientName}</div>` : ''}
+    </div>
     ${flags.length ? `<span class="badge">${flags.length} flag${flags.length !== 1 ? 's' : ''}</span>` : ''}
   </div>
-  <div class="content">${cards}</div>
+  ${toolCalls.length ? `
+  <div class="agent-section">
+    <div class="agent-label">Agent queries</div>
+    ${toolRows}
+  </div>` : ''}
+  <div class="findings-section">${cards}</div>
+  <div class="findings-section" style="text-align:center;padding:1rem 1rem 1.5rem;animation-delay:${findingsDelay}s;">
+    <button onclick="window.close();" style="font-size:0.8rem;padding:6px 20px;background:white;color:#64748b;border:1px solid #cbd5e0;border-radius:5px;cursor:pointer;">Close</button>
+  </div>
   </body></html>`;
 }
 
